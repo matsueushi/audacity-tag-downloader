@@ -6,6 +6,17 @@ use std::env;
 pub const USER_AGENT: &'static str =
     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
+fn parse_release_id(arg: &str) -> Option<u32> {
+    let mut splits = arg.split('/').collect::<Vec<_>>();
+    let release_id_parse = splits.pop().unwrap().parse::<u32>();
+    if let Ok(release_id) = release_id_parse {
+        if splits.is_empty() || splits.pop() == Some("release") {
+            return Some(release_id);
+        }
+    }
+    None
+}
+
 fn trim_artist(artist_str: &str) -> String {
     let re = regex::Regex::new(r"(?P<artist>.*?)(\s\(\d*\))*$").unwrap();
     let mat = re.captures(artist_str).unwrap();
@@ -20,26 +31,16 @@ fn release_info(client: &mut Discogs, release_id: u32) {
             println!("GENRE: {}", release_result.genres.unwrap().pop().unwrap());
             println!(
                 "ARTIST: {}",
-                release_result.artists.unwrap().pop().unwrap().name
+                trim_artist(&release_result.artists.unwrap().pop().unwrap().name)
             );
             println!("ALBUM: {}", release_result.title);
             println!("COUNTRY: {}", release_result.country.unwrap());
+            println!("RELEASE: {:?}", release_result.tracklist);
         }
         Err(_) => {
             println!("Release not found");
         }
     }
-}
-
-fn parse_release_id(arg: &str) -> Option<u32> {
-    let mut splits = arg.split('/').collect::<Vec<_>>();
-    let release_id_parse = splits.pop().unwrap().parse::<u32>();
-    if let Ok(release_id) = release_id_parse {
-        if splits.is_empty() || splits.pop() == Some("release") {
-            return Some(release_id);
-        }
-    }
-    None
 }
 
 fn main() {
@@ -58,14 +59,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn trim_artist_test() {
-        assert_eq!(trim_artist("Artist"), "Artist");
-        assert_eq!(trim_artist("Artist (2)"), "Artist");
-        assert_eq!(trim_artist("Artist (100)"), "Artist");
-    }
-    #[test]
     fn parse_release_id_test() {
         assert_eq!(parse_release_id(&mut "".to_string()), None);
+        assert_eq!(parse_release_id(&mut "abcde".to_string()), None);
         assert_eq!(parse_release_id(&mut "-1".to_string()), None);
         assert_eq!(parse_release_id(&mut "0".to_string()), Some(0));
         assert_eq!(parse_release_id(&mut "100".to_string()), Some(100));
@@ -77,6 +73,13 @@ mod tests {
             ),
             Some(243919)
         );
+    }
+
+    #[test]
+    fn trim_artist_test() {
+        assert_eq!(trim_artist("Artist"), "Artist");
+        assert_eq!(trim_artist("Artist (2)"), "Artist");
+        assert_eq!(trim_artist("Artist (100)"), "Artist");
     }
 
 }
