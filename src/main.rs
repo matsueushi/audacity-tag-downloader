@@ -1,4 +1,5 @@
 extern crate discogs;
+extern crate regex;
 use discogs::*;
 use std::env;
 
@@ -11,14 +12,17 @@ fn release_info(client: &mut Discogs, release_id: u32) {
     if release.is_ok() {
         let release_result = release.ok().unwrap();
         println!("YEAR: {}", release_result.year);
-        println!("GENRE: {:?}", release_result.genres);
-        println!("ARTIST: {:?}", release_result.artists);
+        println!("GENRE: {}", release_result.genres.unwrap().pop().unwrap());
+        println!(
+            "ARTIST: {}",
+            release_result.artists.unwrap().pop().unwrap().name
+        );
         println!("ALBUM: {}", release_result.title);
-        println!("COUNTRY: {:?}", release_result.country);
+        println!("COUNTRY: {}", release_result.country.unwrap());
     }
 }
 
-fn parse_release_id(arg: &mut String) -> Option<u64> {
+fn parse_release_id(arg: &str) -> Option<u64> {
     let mut splits = arg.split('/').collect::<Vec<_>>();
     let release_id_parse = splits.pop().unwrap().parse::<u64>();
     if let Ok(release_id) = release_id_parse {
@@ -30,11 +34,10 @@ fn parse_release_id(arg: &mut String) -> Option<u64> {
 }
 
 fn main() {
-    let mut args: Vec<String> = env::args().collect();
-
-    for i in 0..args.len() {
-        parse_release_id(&mut args[i]);
-    }
+    let mut release_ids = env::args().map(|x| parse_release_id(&x)).skip(1);
+    println!("{:?}", release_ids.next());
+    println!("{:?}", release_ids.next());
+    println!("{:?}", release_ids.next());
 
     let mut client = Discogs::new(USER_AGENT);
     release_info(&mut client, 8492202);
