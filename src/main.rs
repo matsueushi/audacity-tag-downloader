@@ -1,5 +1,7 @@
 extern crate discogs;
+extern crate dotenv;
 extern crate regex;
+
 use discogs::*;
 use std::env;
 
@@ -32,6 +34,7 @@ fn parse_release_info(release: discogs::data_structures::Release) {
     );
     println!("ALBUM: {}", release.title);
     println!("COUNTRY: {}", release.country.unwrap());
+    println!("IMAGE: {:?}", release.images);
     println!("TRACKLIST: {:?}", release.tracklist);
 }
 
@@ -48,11 +51,17 @@ fn release_info(client: &mut Discogs, release_id: u32) {
 }
 
 fn main() {
+    dotenv::dotenv().ok();
+
     let mut release_ids = env::args().map(|x| parse_release_id(&x)).skip(1);
     println!("{:?}", release_ids.next());
     println!("{:?}", release_ids.next());
 
     let mut client = Discogs::new(USER_AGENT);
+    release_info(&mut client, 8492202);
+
+    client.key(&env::var("CONSUMER_KEY").ok().unwrap());
+    client.secret(&env::var("CONSUMER_SECRET").ok().unwrap());
     release_info(&mut client, 8492202);
 }
 
@@ -107,6 +116,14 @@ mod tests {
         );
         release.genres = Some(vec!["genre".to_string()]);
         release.country = Some("Japan".to_string());
+        release.images = Some(vec![Image {
+            resource_url: "url".to_string(),
+            image_type: "primary".to_string(),
+            uri: "uri".to_string(),
+            uri150: "uri150".to_string(),
+            height: 80,
+            width: 100,
+        }]);
         release.tracklist = Some(vec![
             Track {
                 duration: "1:00".to_string(),

@@ -3,7 +3,9 @@ name = "audacity-tag-downloader"
 version = "0.1.0"
 authors = ["matsueushi <sinxcosxtanx@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/matsueushi/audacity-tag-downloader"
 
 [dependencies]
-regex = "1"
 discogs = "0.3.1"
+dotenv = "0.13.0"
+regex = "1"
