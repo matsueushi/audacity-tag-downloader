@@ -27,15 +27,30 @@ fn trim_artist(artist_str: &str) -> String {
 
 fn parse_release_info(release: discogs::data_structures::Release) {
     println!("YEAR: {}", release.year);
-    println!("GENRE: {}", release.genres.unwrap().pop().unwrap());
-    println!(
-        "ARTIST: {}",
-        trim_artist(&release.artists.unwrap().pop().unwrap().name)
-    );
+    if let Some(mut genres) = release.genres {
+        if let Some(primary_genre) = genres.pop() {
+            println!("GENRE: {}", primary_genre);
+        }
+    }
+    if let Some(mut artists) = release.artists {
+        if let Some(primary_artist) = artists.pop() {
+            println!("ARTIST: {}", trim_artist(&primary_artist.name));
+        }
+    }
     println!("ALBUM: {}", release.title);
-    println!("COUNTRY: {}", release.country.unwrap());
-    println!("IMAGE: {:?}", release.images);
-    println!("TRACKLIST: {:?}", release.tracklist);
+    if let Some(country) = release.country {
+        println!("COUNTRY: {}", country);
+    }
+    if let Some(mut images) = release.images {
+        if let Some(primary_image) = images.pop() {
+            println!("IMAGE: {}", primary_image.resource_url);
+        }
+    }
+    if let Some(tracks) = release.tracklist {
+        for t in tracks {
+            println!("{},{},{}", t.duration, t.position, t.title)
+        }
+    }
 }
 
 fn release_info(client: &mut Discogs, release_id: u32) {
@@ -52,16 +67,15 @@ fn release_info(client: &mut Discogs, release_id: u32) {
 
 fn main() {
     dotenv::dotenv().ok();
-
-    let mut release_ids = env::args().map(|x| parse_release_id(&x)).skip(1);
-    println!("{:?}", release_ids.next());
-    println!("{:?}", release_ids.next());
+    let _ = env::args().map(|x| parse_release_id(&x)).skip(1);
 
     let mut client = Discogs::new(USER_AGENT);
-    release_info(&mut client, 8492202);
-
-    client.key(&env::var("CONSUMER_KEY").ok().unwrap());
-    client.secret(&env::var("CONSUMER_SECRET").ok().unwrap());
+    if let Ok(consumer_key) = env::var("CONSUMER_KEY") {
+        client.key(&consumer_key);
+    }
+    if let Ok(consumer_secret) = env::var("CONSUMER_SECRET") {
+        client.secret(&consumer_secret);
+    }
     release_info(&mut client, 8492202);
 }
 
@@ -92,6 +106,8 @@ mod tests {
         assert_eq!(trim_artist("Artist"), "Artist");
         assert_eq!(trim_artist("Artist (2)"), "Artist");
         assert_eq!(trim_artist("Artist (100)"), "Artist");
+        assert_eq!(trim_artist("3776"), "3776");
+        assert_eq!(trim_artist("3776 (2)"), "3776")
     }
 
     #[test]
