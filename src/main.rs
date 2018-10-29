@@ -31,11 +31,11 @@ fn parse_release_info(release: discogs::data_structures::Release) {
     use quick_xml::Writer;
     use std::io::Cursor;
 
-    fn tag_elem<'a>(name: &str, value: String) -> Event<'a> {
+    fn write_tag_elem<'a>(writer: &mut Writer<Cursor<Vec<u8>>>, name: &str, value: String) {
         let mut elem = BytesStart::borrowed_name(b"tag");
         elem.push_attribute(("name", name));
         elem.push_attribute(("value", value.as_str()));
-        Event::Start(elem)
+        writer.write_event(Event::Start(elem));
     }
 
     let mut writer = Writer::new(Cursor::new(Vec::new()));
@@ -44,40 +44,38 @@ fn parse_release_info(release: discogs::data_structures::Release) {
     writer
         .write_event(Event::Start(BytesStart::borrowed_name(b"tags")))
         .is_ok();
-    writer
-        .write_event(tag_elem("YEAR", release.year.to_string()))
-        .is_ok();
+
+    write_tag_elem(&mut writer, "YEAR", release.year.to_string());
     if let Some(mut genres) = release.genres {
         if let Some(primary_genre) = genres.pop() {
-            writer.write_event(tag_elem("GENRE", primary_genre)).is_ok();
+            write_tag_elem(&mut writer, "GENRE", primary_genre);
         }
     }
     if let Some(mut artists) = release.artists {
         if let Some(primary_artist) = artists.pop() {
-            writer
-                .write_event(tag_elem("ARTIST", trim_artist(&primary_artist.name)))
-                .is_ok();
+            write_tag_elem(&mut writer, "ARTIST", trim_artist(&primary_artist.name));
         }
     }
-    writer.write_event(tag_elem("ALBUM", release.title)).is_ok();
+    write_tag_elem(&mut writer, "ALBUM", release.title);
     if let Some(country) = release.country {
-        writer.write_event(tag_elem("COUNTRY", country)).is_ok();
+        write_tag_elem(&mut writer, "COUNTRY", country);
     }
-    if let Some(mut images) = release.images {
-        if let Some(primary_image) = images.pop() {
-            println!("IMAGE: {}", primary_image.resource_url);
+    if let Some(tracks) = release.tracklist {
+        for t in tracks {
+            write_tag_elem(&mut writer, "TITLE", t.title);
+            write_tag_elem(&mut writer, "TRACKNUMBER", t.position);
         }
     }
     writer
         .write_event(Event::End(BytesEnd::borrowed(b"tags")))
         .is_ok();
-    if let Some(tracks) = release.tracklist {
-        for t in tracks {
-            println!("{},{},{}", t.duration, t.position, t.title)
-        }
-    }
 
     println!("{:?}", String::from_utf8(writer.into_inner().into_inner()));
+    if let Some(mut images) = release.images {
+        if let Some(primary_image) = images.pop() {
+            println!("IMAGE: {}", primary_image.resource_url);
+        }
+    }
 }
 
 fn release_info(client: &mut Discogs, release_id: u32) {
