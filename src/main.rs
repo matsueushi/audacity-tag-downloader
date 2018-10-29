@@ -26,7 +26,13 @@ fn trim_artist(artist_str: &str) -> String {
     mat["artist"].to_string()
 }
 
-fn parse_release_info(release: discogs::data_structures::Release) {
+#[derive(Clone, Debug)]
+struct AlbumData {
+    song_info: Vec<u8>,
+    image_url: Option<String>,
+}
+
+fn parse_release_data(release: discogs::data_structures::Release) -> AlbumData {
     use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, Event};
     use quick_xml::Writer;
     use std::io::Cursor;
@@ -35,7 +41,7 @@ fn parse_release_info(release: discogs::data_structures::Release) {
         let mut elem = BytesStart::borrowed_name(b"tag");
         elem.push_attribute(("name", name));
         elem.push_attribute(("value", value.as_str()));
-        writer.write_event(Event::Start(elem));
+        writer.write_event(Event::Start(elem)).ok();
     }
 
     let mut writer = Writer::new(Cursor::new(Vec::new()));
@@ -70,19 +76,26 @@ fn parse_release_info(release: discogs::data_structures::Release) {
         .write_event(Event::End(BytesEnd::borrowed(b"tags")))
         .is_ok();
 
-    println!("{:?}", String::from_utf8(writer.into_inner().into_inner()));
+    let mut image_url: Option<String> = None;
     if let Some(mut images) = release.images {
         if let Some(primary_image) = images.pop() {
-            println!("IMAGE: {}", primary_image.resource_url);
+            image_url = Some(primary_image.resource_url);
         }
+    }
+    AlbumData {
+        song_info: writer.into_inner().into_inner(),
+        image_url: image_url,
     }
 }
 
-fn release_info(client: &mut Discogs, release_id: u32) {
+fn write_release_data(client: &mut Discogs, release_id: u32) {
     let release_result = client.release(release_id).get();
     match release_result {
         Ok(release) => {
-            parse_release_info(release);
+            let release_data = parse_release_data(release);
+            if let Ok(file) = std::fs::File::create("foo.xml") {
+                println!("{:?}", release_data.song_info);
+            }
         }
         Err(_) => {
             println!("Release not found");
@@ -101,7 +114,7 @@ fn main() {
     if let Ok(consumer_secret) = env::var("CONSUMER_SECRET") {
         client.secret(&consumer_secret);
     }
-    release_info(&mut client, 8492202);
+    write_release_data(&mut client, 8492202);
 }
 
 #[cfg(test)]
@@ -158,7 +171,7 @@ mod tests {
         release.genres = Some(vec!["genre".to_string()]);
         release.country = Some("Japan".to_string());
         release.images = Some(vec![Image {
-            resource_url: "url".to_string(),
+            resource_url: "image_url".to_string(),
             image_type: "primary".to_string(),
             uri: "uri".to_string(),
             uri150: "uri150".to_string(),
@@ -181,7 +194,9 @@ mod tests {
                 extra_artists: None,
             },
         ]);
-        parse_release_info(release);
+        let release_info = parse_release_data(release);
+        println!("{:?}", String::from_utf8(release_info.song_info));
+        assert_eq!(release_info.image_url, Some("image_url".to_string()));
     }
 
 }
