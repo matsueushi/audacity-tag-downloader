@@ -41,10 +41,10 @@ fn parse_release_data(release: discogs::data_structures::Release) -> AlbumData {
         let mut elem = BytesStart::borrowed_name(b"tag");
         elem.push_attribute(("name", name));
         elem.push_attribute(("value", value.as_str()));
-        writer.write_event(Event::Start(elem)).ok();
+        writer.write_event(Event::Empty(elem)).ok();
     }
 
-    let mut writer = Writer::new(Cursor::new(Vec::new()));
+    let mut writer = Writer::new_with_indent(Cursor::new(Vec::new()), b' ', 4);
     let decl = BytesDecl::new(b"1.0", None, None);
     writer.write_event(Event::Decl(decl)).is_ok();
     writer
@@ -89,12 +89,13 @@ fn parse_release_data(release: discogs::data_structures::Release) -> AlbumData {
 }
 
 fn write_release_data(client: &mut Discogs, release_id: u32) {
+    use std::io::Write;
     let release_result = client.release(release_id).get();
     match release_result {
         Ok(release) => {
             let release_data = parse_release_data(release);
-            if let Ok(file) = std::fs::File::create("foo.xml") {
-                println!("{:?}", release_data.song_info);
+            if let Ok(mut file) = std::fs::File::create("foo.xml") {
+                file.write_all(&release_data.song_info);
             }
         }
         Err(_) => {
