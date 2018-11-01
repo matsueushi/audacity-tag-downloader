@@ -27,8 +27,14 @@ fn trim_artist(artist_str: &str) -> String {
 }
 
 #[derive(Clone, Debug)]
+struct SongData {
+    title: String,
+    xml: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
 struct AlbumData {
-    song_info: Vec<u8>,
+    song_data_vec: Vec<SongData>,
     image_url: Option<String>,
 }
 
@@ -66,15 +72,22 @@ fn parse_release_data(release: discogs::data_structures::Release) -> AlbumData {
     if let Some(country) = release.country {
         write_tag_elem(&mut writer, "COUNTRY", country);
     }
+
+    let mut song_data_vec = Vec::new();
     if let Some(tracks) = release.tracklist {
         for t in tracks {
-            write_tag_elem(&mut writer, "TITLE", t.title);
-            write_tag_elem(&mut writer, "TRACKNUMBER", t.position);
+            let mut writer_t = writer.clone();
+            write_tag_elem(&mut writer_t, "TITLE", t.title.clone());
+            write_tag_elem(&mut writer_t, "TRACKNUMBER", t.position);
+            writer_t
+                .write_event(Event::End(BytesEnd::borrowed(b"tags")))
+                .is_ok();
+            song_data_vec.push(SongData {
+                title: t.title,
+                xml: writer_t.into_inner().into_inner(),
+            });
         }
     }
-    writer
-        .write_event(Event::End(BytesEnd::borrowed(b"tags")))
-        .is_ok();
 
     let mut image_url: Option<String> = None;
     if let Some(mut images) = release.images {
@@ -83,7 +96,7 @@ fn parse_release_data(release: discogs::data_structures::Release) -> AlbumData {
         }
     }
     AlbumData {
-        song_info: writer.into_inner().into_inner(),
+        song_data_vec: song_data_vec,
         image_url: image_url,
     }
 }
@@ -94,8 +107,13 @@ fn write_release_data(client: &mut Discogs, release_id: u32) {
     match release_result {
         Ok(release) => {
             let release_data = parse_release_data(release);
-            if let Ok(mut file) = std::fs::File::create("foo.xml") {
-                file.write_all(&release_data.song_info);
+
+            for (i, song_data) in release_data.song_data_vec.iter().enumerate() {
+                if let Ok(mut file) =
+                    std::fs::File::create(format!("{:02} {}.xml", i, song_data.title))
+                {
+                    file.write_all(&song_data.xml);
+                }
             }
         }
         Err(_) => {
@@ -196,7 +214,6 @@ mod tests {
             },
         ]);
         let release_info = parse_release_data(release);
-        println!("{:?}", String::from_utf8(release_info.song_info));
         assert_eq!(release_info.image_url, Some("image_url".to_string()));
     }
 
